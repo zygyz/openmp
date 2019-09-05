@@ -4,9 +4,10 @@
 
 //===----------------------------------------------------------------------===//
 //
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//                     The LLVM Compiler Infrastructure
+//
+// This file is dual licensed under the MIT and the University of Illinois Open
+// Source Licenses. See LICENSE.txt for details.
 //
 //===----------------------------------------------------------------------===//
 
@@ -17,13 +18,20 @@
  *       is the largest value __kmp_nth may take, 1 is the smallest.
  */
 
+// Need to raise Win version from XP to Vista here for support of
+// InterlockedExchange64
+#if defined(_WIN32_WINNT) && defined(_M_IX86)
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0502
+#endif
+
 #include "kmp.h"
 #include "kmp_error.h"
 #include "kmp_i18n.h"
 #include "kmp_itt.h"
 #include "kmp_stats.h"
 #include "kmp_str.h"
-#if KMP_USE_X87CONTROL
+#if KMP_OS_WINDOWS && KMP_ARCH_X86
 #include <float.h>
 #endif
 #include "kmp_lock.h"
@@ -89,6 +97,7 @@ void __kmp_dispatch_init_algorithm(ident_t *loc, int gtid,
                                    typename traits_t<T>::signed_t chunk,
                                    T nproc, T tid) {
   typedef typename traits_t<T>::unsigned_t UT;
+  typedef typename traits_t<T>::signed_t ST;
   typedef typename traits_t<T>::floating_t DBL;
 
   int active;
@@ -97,7 +106,6 @@ void __kmp_dispatch_init_algorithm(ident_t *loc, int gtid,
   kmp_team_t *team;
 
 #ifdef KMP_DEBUG
-  typedef typename traits_t<T>::signed_t ST;
   {
     char *buff;
     // create format specifiers before the debug output
@@ -348,7 +356,6 @@ void __kmp_dispatch_init_algorithm(ident_t *loc, int gtid,
       /* too few iterations: fall-through to kmp_sch_static_balanced */
     } // if
     /* FALL-THROUGH to static balanced */
-    KMP_FALLTHROUGH();
   } // case
 #endif
   case kmp_sch_static_balanced: {
@@ -478,7 +485,7 @@ void __kmp_dispatch_init_algorithm(ident_t *loc, int gtid,
         /* commonly used term: (2 nproc - 1)/(2 nproc) */
         DBL x;
 
-#if KMP_USE_X87CONTROL
+#if KMP_OS_WINDOWS && KMP_ARCH_X86
         /* Linux* OS already has 64-bit computation by default for long double,
            and on Windows* OS on Intel(R) 64, /Qlong_double doesn't work. On
            Windows* OS on IA-32 architecture, we need to set precision to 64-bit
@@ -573,7 +580,7 @@ void __kmp_dispatch_init_algorithm(ident_t *loc, int gtid,
         pr->u.p.count = tc - __kmp_dispatch_guided_remaining(
                                  tc, GUIDED_ANALYTICAL_WORKAROUND, cross) -
                         cross * chunk;
-#if KMP_USE_X87CONTROL
+#if KMP_OS_WINDOWS && KMP_ARCH_X86
         // restore FPCW
         _control87(oldFpcw, _MCW_PC);
 #endif
@@ -724,6 +731,8 @@ __kmp_dispatch_init(ident_t *loc, int gtid, enum sched_type schedule, T lb,
                     T ub, typename traits_t<T>::signed_t st,
                     typename traits_t<T>::signed_t chunk, int push_ws) {
   typedef typename traits_t<T>::unsigned_t UT;
+  typedef typename traits_t<T>::signed_t ST;
+  typedef typename traits_t<T>::floating_t DBL;
 
   int active;
   kmp_info_t *th;
@@ -740,15 +749,10 @@ __kmp_dispatch_init(ident_t *loc, int gtid, enum sched_type schedule, T lb,
   if (!TCR_4(__kmp_init_parallel))
     __kmp_parallel_initialize();
 
-#if OMP_50_ENABLED
-  __kmp_resume_if_soft_paused();
-#endif
-
 #if INCLUDE_SSC_MARKS
   SSC_MARK_DISPATCH_INIT();
 #endif
 #ifdef KMP_DEBUG
-  typedef typename traits_t<T>::signed_t ST;
   {
     char *buff;
     // create format specifiers before the debug output
@@ -858,9 +862,9 @@ __kmp_dispatch_init(ident_t *loc, int gtid, enum sched_type schedule, T lb,
     KD_TRACE(100, ("__kmp_dispatch_init: T#%d before wait: my_buffer_index:%d "
                    "sh->buffer_index:%d\n",
                    gtid, my_buffer_index, sh->buffer_index));
-    __kmp_wait<kmp_uint32>(&sh->buffer_index, my_buffer_index,
-                           __kmp_eq<kmp_uint32> USE_ITT_BUILD_ARG(NULL));
-    // Note: KMP_WAIT() cannot be used there: buffer index and
+    __kmp_wait_yield<kmp_uint32>(&sh->buffer_index, my_buffer_index,
+                                 __kmp_eq<kmp_uint32> USE_ITT_BUILD_ARG(NULL));
+    // Note: KMP_WAIT_YIELD() cannot be used there: buffer index and
     // my_buffer_index are *always* 32-bit integers.
     KMP_MB(); /* is this necessary? */
     KD_TRACE(100, ("__kmp_dispatch_init: T#%d after wait: my_buffer_index:%d "
@@ -1004,8 +1008,8 @@ static void __kmp_dispatch_finish(int gtid, ident_t *loc) {
       }
 #endif
 
-      __kmp_wait<UT>(&sh->u.s.ordered_iteration, lower,
-                     __kmp_ge<UT> USE_ITT_BUILD_ARG(NULL));
+      __kmp_wait_yield<UT>(&sh->u.s.ordered_iteration, lower,
+                           __kmp_ge<UT> USE_ITT_BUILD_ARG(NULL));
       KMP_MB(); /* is this necessary? */
 #ifdef KMP_DEBUG
       {
@@ -1073,8 +1077,8 @@ static void __kmp_dispatch_finish_chunk(int gtid, ident_t *loc) {
       }
 #endif
 
-      __kmp_wait<UT>(&sh->u.s.ordered_iteration, lower,
-                     __kmp_ge<UT> USE_ITT_BUILD_ARG(NULL));
+      __kmp_wait_yield<UT>(&sh->u.s.ordered_iteration, lower,
+                           __kmp_ge<UT> USE_ITT_BUILD_ARG(NULL));
 
       KMP_MB(); /* is this necessary? */
       KD_TRACE(1000, ("__kmp_dispatch_finish_chunk: T#%d resetting "
@@ -1629,7 +1633,7 @@ int __kmp_dispatch_next_algorithm(int gtid,
   case kmp_sch_guided_analytical_chunked: {
     T chunkspec = pr->u.p.parm1;
     UT chunkIdx;
-#if KMP_USE_X87CONTROL
+#if KMP_OS_WINDOWS && KMP_ARCH_X86
     /* for storing original FPCW value for Windows* OS on
        IA-32 architecture 8-byte version */
     unsigned int oldFpcw;
@@ -1666,7 +1670,7 @@ int __kmp_dispatch_next_algorithm(int gtid,
    Windows* OS.
    This check works around the possible effect that init != 0 for chunkIdx == 0.
  */
-#if KMP_USE_X87CONTROL
+#if KMP_OS_WINDOWS && KMP_ARCH_X86
         /* If we haven't already done so, save original
            FPCW and set precision to 64-bit, as Windows* OS
            on IA-32 architecture defaults to 53-bit */
@@ -1694,7 +1698,7 @@ int __kmp_dispatch_next_algorithm(int gtid,
         } // if
       } // if
     } // while (1)
-#if KMP_USE_X87CONTROL
+#if KMP_OS_WINDOWS && KMP_ARCH_X86
     /* restore FPCW if necessary
        AC: check fpcwSet flag first because oldFpcw can be uninitialized here
     */
@@ -1819,6 +1823,25 @@ int __kmp_dispatch_next_algorithm(int gtid,
 #define OMPT_LOOP_END // no-op
 #endif
 
+#if OMPT_SUPPORT && OMPT_OPTIONAL  // callback defined in OpenMP tr 7
+#define OMPT_DISPATCH_NEXT                                                    \
+    if (status != 0) {                                                        \
+        if (ompt_enabled.ompt_callback_dispatch) {                            \
+            ompt_team_info_t *team_info = __ompt_get_teaminfo(0, NULL);       \
+            ompt_task_info_t *task_info = __ompt_get_task_info_object(0);     \
+            ompt_data_t instance;                                             \
+            instance.value = (uint64_t)(*p_lb);                               \
+            ompt_callbacks.ompt_callback(ompt_callback_dispatch)(             \
+               &(team_info->parallel_data),                                   \
+               &(task_info->task_data),                                       \
+               ompt_dispatch_iteration,                                       \
+               instance);                                                     \
+        }                                                                     \
+    }
+#else
+#define OMPT_DISPATCH_NEXT
+#endif
+
 #if KMP_STATS_ENABLED
 #define KMP_STATS_LOOP_END                                                     \
   {                                                                            \
@@ -1863,6 +1886,7 @@ static int __kmp_dispatch_next(ident_t *loc, int gtid, kmp_int32 *p_last,
 
   typedef typename traits_t<T>::unsigned_t UT;
   typedef typename traits_t<T>::signed_t ST;
+  typedef typename traits_t<T>::floating_t DBL;
   // This is potentially slightly misleading, schedule(runtime) will appear here
   // even if the actual runtme schedule is static. (Which points out a
   // disadavantage of schedule(runtime): even when static scheduling is used it
@@ -2110,6 +2134,7 @@ static int __kmp_dispatch_next(ident_t *loc, int gtid, kmp_int32 *p_last,
 #endif
   OMPT_LOOP_END;
   KMP_STATS_LOOP_END;
+  OMPT_DISPATCH_NEXT;
   return status;
 }
 
@@ -2118,6 +2143,7 @@ static void __kmp_dist_get_bounds(ident_t *loc, kmp_int32 gtid,
                                   kmp_int32 *plastiter, T *plower, T *pupper,
                                   typename traits_t<T>::signed_t incr) {
   typedef typename traits_t<T>::unsigned_t UT;
+  typedef typename traits_t<T>::signed_t ST;
   kmp_uint32 team_id;
   kmp_uint32 nteams;
   UT trip_count;
@@ -2127,7 +2153,6 @@ static void __kmp_dist_get_bounds(ident_t *loc, kmp_int32 gtid,
   KMP_DEBUG_ASSERT(plastiter && plower && pupper);
   KE_TRACE(10, ("__kmpc_dist_get_bounds called (%d)\n", gtid));
 #ifdef KMP_DEBUG
-  typedef typename traits_t<T>::signed_t ST;
   {
     char *buff;
     // create format specifiers before the debug output
@@ -2165,7 +2190,7 @@ static void __kmp_dist_get_bounds(ident_t *loc, kmp_int32 gtid,
   nteams = th->th.th_teams_size.nteams;
 #endif
   team_id = team->t.t_master_tid;
-  KMP_DEBUG_ASSERT(nteams == (kmp_uint32)team->t.t_parent->t.t_nproc);
+  KMP_DEBUG_ASSERT(nteams == team->t.t_parent->t.t_nproc);
 
   // compute global trip count
   if (incr == 1) {
@@ -2489,10 +2514,10 @@ kmp_uint32 __kmp_le_4(kmp_uint32 value, kmp_uint32 checker) {
 }
 
 kmp_uint32
-__kmp_wait_4(volatile kmp_uint32 *spinner, kmp_uint32 checker,
-             kmp_uint32 (*pred)(kmp_uint32, kmp_uint32),
-             void *obj // Higher-level synchronization object, or NULL.
-             ) {
+__kmp_wait_yield_4(volatile kmp_uint32 *spinner, kmp_uint32 checker,
+                   kmp_uint32 (*pred)(kmp_uint32, kmp_uint32),
+                   void *obj // Higher-level synchronization object, or NULL.
+                   ) {
   // note: we may not belong to a team at this point
   volatile kmp_uint32 *spin = spinner;
   kmp_uint32 check = checker;
@@ -2509,16 +2534,20 @@ __kmp_wait_4(volatile kmp_uint32 *spinner, kmp_uint32 checker,
        split. It causes problems with infinite recursion because of exit lock */
     /* if ( TCR_4(__kmp_global.g.g_done) && __kmp_global.g.g_abort)
         __kmp_abort_thread(); */
-    KMP_YIELD_OVERSUB_ELSE_SPIN(spins);
+
+    /* if we have waited a bit, or are oversubscribed, yield */
+    /* pause is in the following code */
+    KMP_YIELD(TCR_4(__kmp_nth) > __kmp_avail_proc);
+    KMP_YIELD_SPIN(spins);
   }
   KMP_FSYNC_SPIN_ACQUIRED(obj);
   return r;
 }
 
-void __kmp_wait_4_ptr(void *spinner, kmp_uint32 checker,
-                      kmp_uint32 (*pred)(void *, kmp_uint32),
-                      void *obj // Higher-level synchronization object, or NULL.
-                      ) {
+void __kmp_wait_yield_4_ptr(
+    void *spinner, kmp_uint32 checker, kmp_uint32 (*pred)(void *, kmp_uint32),
+    void *obj // Higher-level synchronization object, or NULL.
+    ) {
   // note: we may not belong to a team at this point
   void *spin = spinner;
   kmp_uint32 check = checker;
@@ -2530,9 +2559,10 @@ void __kmp_wait_4_ptr(void *spinner, kmp_uint32 checker,
   // main wait spin loop
   while (!f(spin, check)) {
     KMP_FSYNC_SPIN_PREPARE(obj);
-    /* if we have waited a bit, or are noversubscribed, yield */
+    /* if we have waited a bit, or are oversubscribed, yield */
     /* pause is in the following code */
-    KMP_YIELD_OVERSUB_ELSE_SPIN(spins);
+    KMP_YIELD(TCR_4(__kmp_nth) > __kmp_avail_proc);
+    KMP_YIELD_SPIN(spins);
   }
   KMP_FSYNC_SPIN_ACQUIRED(obj);
 }
