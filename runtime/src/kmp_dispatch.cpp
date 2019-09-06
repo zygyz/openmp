@@ -1819,6 +1819,25 @@ int __kmp_dispatch_next_algorithm(int gtid,
 #define OMPT_LOOP_END // no-op
 #endif
 
+#if OMPT_SUPPORT && OMPT_OPTIONAL
+#define OMPT_DISPATCH_NEXT                                                     \
+  if (status != 0) {                                                           \
+    if (ompt_enabled.ompt_callback_dispatch) {                                 \ 
+        ompt_team_info_t *team_info = __ompt_get_teaminfo(0, NULL);            \
+        ompt_task_info_t *task_info = __ompt_get_task_info_object(0);          \
+        ompt_data_t instance;                                                  \
+        instance.value = (uint64_t)(*p_lb);                                    \
+        ompt_callbacks.ompt_callback(ompt_callback_dispatch)(                  \
+              &(team_info->parallel_data),                                     \
+              &(task_info->task_data),                                         \
+              ompt_dispatch_iteration,                                         \
+              instance);                                                       \
+       }                                                                       \
+    }
+#else
+#define OMPT_DISPATCH_NEXT
+#endif
+
 #if KMP_STATS_ENABLED
 #define KMP_STATS_LOOP_END                                                     \
   {                                                                            \
