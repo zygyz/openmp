@@ -1822,7 +1822,7 @@ int __kmp_dispatch_next_algorithm(int gtid,
 #if OMPT_SUPPORT && OMPT_OPTIONAL
 #define OMPT_DISPATCH_NEXT                                                     \
   if (status != 0) {                                                           \
-    if (ompt_enabled.ompt_callback_dispatch) {                                 \ 
+    if (ompt_enabled.ompt_callback_dispatch) {                                 \
         ompt_team_info_t *team_info = __ompt_get_teaminfo(0, NULL);            \
         ompt_task_info_t *task_info = __ompt_get_task_info_object(0);          \
         ompt_data_t instance;                                                  \
