@@ -2011,6 +2011,7 @@ static int __kmp_dispatch_next(ident_t *loc, int gtid, kmp_int32 *p_last,
 #endif
     OMPT_LOOP_END;
     KMP_STATS_LOOP_END;
+    OMPT_DISPATCH_NEXT;
     return status;
   } else {
     kmp_int32 last = 0;
@@ -2129,6 +2130,7 @@ static int __kmp_dispatch_next(ident_t *loc, int gtid, kmp_int32 *p_last,
 #endif
   OMPT_LOOP_END;
   KMP_STATS_LOOP_END;
+  OMPT_DISPATCH_NEXT;
   return status;
 }
 
