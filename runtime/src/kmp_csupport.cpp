@@ -3413,6 +3413,20 @@ __kmpc_reduce_nowait(ident_t *loc, kmp_int32 global_tid, kmp_int32 num_vars,
   teams_swapped = __kmp_swap_teams_for_teams_reduction(th, &team, &task_state);
 #endif // OMP_40_ENABLED
 
+#if OMPT_SUPPORT && OMPT_OPTIONAL
+  ompt_data_t *cur_task_data = OMPT_CUR_TASK_DATA(th); 
+  ompt_data_t *cur_parallel_data = OMPT_CUR_TEAM_DATA(th);
+  void* return_address = OMPT_LOAD_RETURN_ADDRESS(global_tid);
+  if (ompt_enabled.enabled) {
+      if (ompt_enabled.ompt_callback_reduction) {
+          ompt_callbacks.ompt_callback(ompt_callback_reduction)(
+            ompt_sync_region_reduction, ompt_scope_begin, cur_parallel_data,
+            cur_task_data, return_address);
+      }
+  }
+#endif
+
+
   // packed_reduction_method value will be reused by __kmp_end_reduce* function,
   // the value should be kept in a variable
   // the variable should be either a construct-specific or thread-specific
@@ -3522,6 +3536,10 @@ __kmpc_reduce_nowait(ident_t *loc, kmp_int32 global_tid, kmp_int32 num_vars,
       ("__kmpc_reduce_nowait() exit: called T#%d: method %08x, returns %08x\n",
        global_tid, packed_reduction_method, retval));
 
+#if OMPT_SUPPORT && OMPT_OPTIONAL
+  ompt_data_t *cur_task_data = OMPT_CUR_TASK_DATA(th);
+  ompt_data_t *cur_parallel_data = OMPT_CUR_TEAM_DATA(th);
+#endif
   return retval;
 }
 
@@ -3574,7 +3592,18 @@ void __kmpc_end_reduce_nowait(ident_t *loc, kmp_int32 global_tid,
 
   KA_TRACE(10, ("__kmpc_end_reduce_nowait() exit: called T#%d: method %08x\n",
                 global_tid, packed_reduction_method));
-
+#if OMPT_SUPPORT && OMPT_OPTIONAL 
+  ompt_data_t *cur_task_data = OMPT_CUR_TASK_DATA(th);
+  ompt_data_t *cur_parallel_data = OMPT_CUR_TEAM_DATA(th);
+  void* return_address = OMPT_LOAD_RETURN_ADDRESS(global_tid);
+  if (ompt_enabled.enabled) {
+      if (ompt_enabled.ompt_callback_reduction) {
+          ompt_callbacks.ompt_callback(ompt_callback_reduction)(
+            ompt_sync_region_reduction, ompt_scope_end, cur_parallel_data,
+            cur_task_data, return_address);
+      }
+  }
+#endif
   return;
 }
 
@@ -3636,6 +3665,19 @@ kmp_int32 __kmpc_reduce(ident_t *loc, kmp_int32 global_tid, kmp_int32 num_vars,
   th = __kmp_thread_from_gtid(global_tid);
   teams_swapped = __kmp_swap_teams_for_teams_reduction(th, &team, &task_state);
 #endif // OMP_40_ENABLED
+
+#if OMPT_SUPPORT && OMPT_OPTIONAL
+  ompt_data_t *cur_task_data = OMPT_CUR_TASK_DATA(th);
+  ompt_data_t *cur_parallel_data = OMPT_CUR_TEAM_DATA(th);
+  void* return_address = OMPT_LOAD_RETURN_ADDRESS(global_tid);
+  if (ompt_enabled.enabled) {
+      if (ompt_enabled.ompt_callback_reduction) {
+          ompt_callbacks.ompt_callback(ompt_callback_reduction)(
+            ompt_sync_region_reduction, ompt_scope_begin, cur_parallel_data, 
+            cur_task_data, return_address);
+      }
+  }
+#endif
 
   packed_reduction_method = __kmp_determine_reduction_method(
       loc, global_tid, num_vars, reduce_size, reduce_data, reduce_func, lck);
@@ -3836,7 +3878,18 @@ void __kmpc_end_reduce(ident_t *loc, kmp_int32 global_tid,
 
   KA_TRACE(10, ("__kmpc_end_reduce() exit: called T#%d: method %08x\n",
                 global_tid, packed_reduction_method));
-
+#if OMPT_SUPPORT && OMPT_OPTIONAL 
+  ompt_data_t *cur_task_data = OMPT_CUR_TASK_DATA(th);
+  ompt_data_t *cur_parallel_data = OMPT_CUR_TEAM_DATA(th);
+  void* return_address = OMPT_LOAD_RETURN_ADDRESS(global_tid);
+  if (ompt_enabled.enabled) {
+      if (ompt_enabled.ompt_callback_reduction) {
+          ompt_callbacks.ompt_callback(ompt_callback_reduction)(
+            ompt_sync_region_reduction, ompt_scope_end, cur_parallel_data,
+            cur_task_data, return_address);
+      }
+  }
+#endif
   return;
 }
 
