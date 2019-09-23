@@ -139,10 +139,14 @@ ompt_start_tool(unsigned int omp_version, const char *runtime_version) {
   // runtime library is linked before the tool. Since glibc 2.2 strong symbols
   // don't override weak symbols that have been found before unless the user
   // sets the environment variable LD_DYNAMIC_WEAK.
+  printf("runtime library: ompt_start_tool called");
   ompt_start_tool_t next_tool =
       (ompt_start_tool_t)dlsym(RTLD_NEXT, "ompt_start_tool");
   if (next_tool) {
+    printf("found ompt_start_tool\n");
     ret = next_tool(omp_version, runtime_version);
+  } else {
+    printf("ompt_start_tool not found\n");
   }
   return ret;
 }
