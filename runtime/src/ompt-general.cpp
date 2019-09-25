@@ -118,6 +118,7 @@ static ompt_start_tool_result_t *ompt_tool_darwin(unsigned int omp_version,
                                                   const char *runtime_version) {
   ompt_start_tool_result_t *ret = NULL;
   // Search symbol in the current address space.
+  printf("runtime library: ompt_tool_darwin called");
   ompt_start_tool_t start_tool =
       (ompt_start_tool_t)dlsym(RTLD_DEFAULT, "ompt_start_tool");
   if (start_tool) {
