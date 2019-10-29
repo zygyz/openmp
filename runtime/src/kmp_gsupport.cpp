@@ -404,6 +404,7 @@ static
 
     // implicit task callback
     if (ompt_enabled.ompt_callback_implicit_task) {
+      printf("gsupport ompt_callback_implicit_task");
       ompt_team_size = __kmp_team_from_gtid(gtid)->t.t_nproc;
       ompt_callbacks.ompt_callback(ompt_callback_implicit_task)(
           ompt_scope_begin, &(team_info->parallel_data),

@@ -1415,6 +1415,7 @@ void __kmp_serialized_parallel(ident_t *loc, kmp_int32 global_tid) {
     /* OMPT implicit task begin */
     implicit_task_data = OMPT_CUR_TASK_DATA(this_thr);
     if (ompt_enabled.ompt_callback_implicit_task) {
+      printf("kmp runtime , ompt_callback_implicit_task calling\n");
       ompt_callbacks.ompt_callback(ompt_callback_implicit_task)(
           ompt_scope_begin, OMPT_CUR_TEAM_DATA(this_thr),
           OMPT_CUR_TASK_DATA(this_thr), 1, __kmp_tid_from_gtid(global_tid), ompt_task_implicit); // TODO: Can this be ompt_task_initial?
