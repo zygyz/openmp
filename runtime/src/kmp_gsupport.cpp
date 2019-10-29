@@ -1661,6 +1661,7 @@ void __GOMP_taskloop(void (*func)(void *), void *data,
                      T step) {
   typedef void (*p_task_dup_t)(kmp_task_t *, kmp_task_t *, kmp_int32);
   MKLOC(loc, "GOMP_taskloop");
+  printf("gomp taskloop");
   int sched;
   T *loop_bounds;
   int gtid = __kmp_entry_gtid();
