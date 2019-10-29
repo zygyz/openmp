@@ -4161,6 +4161,7 @@ void __kmpc_taskloop(ident_t *loc, int gtid, kmp_task_t *task, int if_val,
   kmp_info_t *thread = __kmp_threads[gtid];
   kmp_taskdata_t *current_task = thread->th.th_current_task;
 
+  printf("kmpc_taskloop called\n");
   KA_TRACE(20, ("__kmpc_taskloop: T#%d, task %p, lb %lld, ub %lld, st %lld, "
                 "grain %llu(%d), dup %p\n",
                 gtid, taskdata, lower, upper, st, grainsize, sched, task_dup));
