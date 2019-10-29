@@ -525,6 +525,7 @@ void __kmpc_end_serialized_parallel(ident_t *loc, kmp_int32 global_tid) {
       this_thr->th.ompt_thread_info.state != ompt_state_overhead) {
     OMPT_CUR_TASK_INFO(this_thr)->frame.exit_frame = ompt_data_none;
     if (ompt_enabled.ompt_callback_implicit_task) {
+      printf("ompt callback implicit task");
       ompt_callbacks.ompt_callback(ompt_callback_implicit_task)(
           ompt_scope_end, NULL, OMPT_CUR_TASK_DATA(this_thr), 1,
           OMPT_CUR_TASK_INFO(this_thr)->thread_num, ompt_task_implicit);

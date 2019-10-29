@@ -4140,7 +4140,7 @@ void __kmpc_taskloop(ident_t *loc, int gtid, kmp_task_t *task, int if_val,
                      int sched, kmp_uint64 grainsize, void *task_dup) {
   kmp_taskdata_t *taskdata = KMP_TASK_TO_TASKDATA(task);
   KMP_DEBUG_ASSERT(task != NULL);
-
+  printf("__kmpc_taskloop called");
   if (nogroup == 0) {
 #if OMPT_SUPPORT && OMPT_OPTIONAL
     OMPT_STORE_RETURN_ADDRESS(gtid);
