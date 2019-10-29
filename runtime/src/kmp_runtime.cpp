@@ -1415,7 +1415,6 @@ void __kmp_serialized_parallel(ident_t *loc, kmp_int32 global_tid) {
     /* OMPT implicit task begin */
     implicit_task_data = OMPT_CUR_TASK_DATA(this_thr);
     if (ompt_enabled.ompt_callback_implicit_task) {
-      printf("kmp runtime , ompt_callback_implicit_task calling\n");
       ompt_callbacks.ompt_callback(ompt_callback_implicit_task)(
           ompt_scope_begin, OMPT_CUR_TEAM_DATA(this_thr),
           OMPT_CUR_TASK_DATA(this_thr), 1, __kmp_tid_from_gtid(global_tid), ompt_task_implicit); // TODO: Can this be ompt_task_initial?
@@ -1465,7 +1464,7 @@ int __kmp_fork_call(ident_t *loc, int gtid,
     KMP_TIME_DEVELOPER_PARTITIONED_BLOCK(KMP_fork_call);
     KMP_COUNT_VALUE(OMP_PARALLEL_args, argc);
 
-    KA_TRACE(20, ("__kmp_fork_call: enter T#%d\n", gtid));
+    KA_TRACE(0, ("__kmp_fork_call: enter T#%d\n", gtid));
     if (__kmp_stkpadding > 0 && __kmp_root[gtid] != NULL) {
       /* Some systems prefer the stack for the root thread(s) to start with */
       /* some gap from the parent stack to prevent false sharing. */
@@ -1586,6 +1585,7 @@ int __kmp_fork_call(ident_t *loc, int gtid,
           /* OMPT implicit task begin */
           implicit_task_data = OMPT_CUR_TASK_DATA(master_th);
           if (ompt_enabled.ompt_callback_implicit_task) {
+            printf("ompt_callback_implicit_task");
             ompt_callbacks.ompt_callback(ompt_callback_implicit_task)(
                 ompt_scope_begin, OMPT_CUR_TEAM_DATA(master_th),
                 implicit_task_data, 1, __kmp_tid_from_gtid(gtid), ompt_task_implicit); // TODO: Can this be ompt_task_initial?
