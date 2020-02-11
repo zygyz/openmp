@@ -3585,9 +3585,12 @@ void __kmpc_end_reduce_nowait(ident_t *loc, kmp_int32 global_tid,
 
   KA_TRACE(10, ("__kmpc_end_reduce_nowait() exit: called T#%d: method %08x\n",
                 global_tid, packed_reduction_method));
+#if OMP_40_ENABLED
+  kmp_info_t *th;
+  th = __kmp_thread_from_gtid(global_tid);
+#endif // OMP_40_ENABLED
 
 #if OMPT_SUPPORT && OMPT_OPTIONAL 
-  kmp_info_t *th = __kmp_thread_from_gtid(global_tid);
   ompt_data_t *cur_task_data = OMPT_CUR_TASK_DATA(th);
   ompt_data_t *cur_parallel_data = OMPT_CUR_TEAM_DATA(th);
   void* return_address = OMPT_LOAD_RETURN_ADDRESS(global_tid);
