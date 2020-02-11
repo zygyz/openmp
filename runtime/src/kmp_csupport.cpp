@@ -4,13 +4,13 @@
 
 //===----------------------------------------------------------------------===//
 //
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//                     The LLVM Compiler Infrastructure
+//
+// This file is dual licensed under the MIT and the University of Illinois Open
+// Source Licenses. See LICENSE.txt for details.
 //
 //===----------------------------------------------------------------------===//
 
-#define __KMP_IMP
 #include "omp.h" /* extern "C" declarations of user-visible routines */
 #include "kmp.h"
 #include "kmp_error.h"
@@ -70,14 +70,6 @@ void __kmpc_end(ident_t *loc) {
 
     __kmp_internal_end_thread(-1);
   }
-#if KMP_OS_WINDOWS && OMPT_SUPPORT
-  // Normal exit process on Windows does not allow worker threads of the final
-  // parallel region to finish reporting their events, so shutting down the
-  // library here fixes the issue at least for the cases where __kmpc_end() is
-  // placed properly.
-  if (ompt_enabled.enabled)
-    __kmp_internal_end_library(__kmp_gtid_get_specific());
-#endif
 }
 
 /*!
@@ -288,7 +280,7 @@ void __kmpc_fork_call(ident_t *loc, kmp_int32 argc, kmpc_micro microtask, ...) {
     va_start(ap, microtask);
 
 #if OMPT_SUPPORT
-    ompt_frame_t *ompt_frame;
+    omp_frame_t *ompt_frame;
     if (ompt_enabled.enabled) {
       kmp_info_t *master_th = __kmp_threads[gtid];
       kmp_team_t *parent_team = master_th->th.th_team;
@@ -300,7 +292,7 @@ void __kmpc_fork_call(ident_t *loc, kmp_int32 argc, kmpc_micro microtask, ...) {
         ompt_frame = &(
             parent_team->t.t_implicit_task_taskdata[tid].ompt_task_info.frame);
       }
-      ompt_frame->enter_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
+      ompt_frame->enter_frame = OMPT_GET_FRAME_ADDRESS(1);
       OMPT_STORE_RETURN_ADDRESS(gtid);
     }
 #endif
@@ -397,7 +389,7 @@ void __kmpc_fork_teams(ident_t *loc, kmp_int32 argc, kmpc_micro microtask,
   int tid = __kmp_tid_from_gtid(gtid);
   if (ompt_enabled.enabled) {
     parent_team->t.t_implicit_task_taskdata[tid]
-        .ompt_task_info.frame.enter_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
+        .ompt_task_info.frame.enter_frame = OMPT_GET_FRAME_ADDRESS(1);
   }
   OMPT_STORE_RETURN_ADDRESS(gtid);
 #endif
@@ -530,12 +522,12 @@ void __kmpc_end_serialized_parallel(ident_t *loc, kmp_int32 global_tid) {
 
 #if OMPT_SUPPORT
   if (ompt_enabled.enabled &&
-      this_thr->th.ompt_thread_info.state != ompt_state_overhead) {
-    OMPT_CUR_TASK_INFO(this_thr)->frame.exit_frame = ompt_data_none;
+      this_thr->th.ompt_thread_info.state != omp_state_overhead) {
+    OMPT_CUR_TASK_INFO(this_thr)->frame.exit_frame = NULL;
     if (ompt_enabled.ompt_callback_implicit_task) {
       ompt_callbacks.ompt_callback(ompt_callback_implicit_task)(
           ompt_scope_end, NULL, OMPT_CUR_TASK_DATA(this_thr), 1,
-          OMPT_CUR_TASK_INFO(this_thr)->thread_num, ompt_task_implicit);
+          OMPT_CUR_TASK_INFO(this_thr)->thread_num);
     }
 
     // reset clear the task id only after unlinking the task
@@ -549,7 +541,7 @@ void __kmpc_end_serialized_parallel(ident_t *loc, kmp_int32 global_tid) {
           OMPT_LOAD_RETURN_ADDRESS(global_tid));
     }
     __ompt_lw_taskteam_unlink(this_thr);
-    this_thr->th.ompt_thread_info.state = ompt_state_overhead;
+    this_thr->th.ompt_thread_info.state = omp_state_overhead;
   }
 #endif
 
@@ -629,8 +621,8 @@ void __kmpc_end_serialized_parallel(ident_t *loc, kmp_int32 global_tid) {
 #if OMPT_SUPPORT
   if (ompt_enabled.enabled)
     this_thr->th.ompt_thread_info.state =
-        ((this_thr->th.th_team_serialized) ? ompt_state_work_serial
-                                           : ompt_state_work_parallel);
+        ((this_thr->th.th_team_serialized) ? omp_state_work_serial
+                                           : omp_state_work_parallel);
 #endif
 }
 
@@ -691,7 +683,7 @@ void __kmpc_flush(ident_t *loc) {
   // }
   // and adding the yield here is good for at least a 10x speedup
   // when running >2 threads per core (on the NAS LU benchmark).
-  __kmp_yield();
+  __kmp_yield(TRUE);
 #endif
 #else
 #error Unknown or unsupported architecture
@@ -730,11 +722,11 @@ void __kmpc_barrier(ident_t *loc, kmp_int32 global_tid) {
   }
 
 #if OMPT_SUPPORT
-  ompt_frame_t *ompt_frame;
+  omp_frame_t *ompt_frame;
   if (ompt_enabled.enabled) {
     __ompt_get_task_info_internal(0, NULL, NULL, &ompt_frame, NULL, NULL);
-    if (ompt_frame->enter_frame.ptr == NULL)
-      ompt_frame->enter_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
+    if (ompt_frame->enter_frame == NULL)
+      ompt_frame->enter_frame = OMPT_GET_FRAME_ADDRESS(1);
     OMPT_STORE_RETURN_ADDRESS(global_tid);
   }
 #endif
@@ -749,7 +741,7 @@ void __kmpc_barrier(ident_t *loc, kmp_int32 global_tid) {
   __kmp_barrier(bs_plain_barrier, global_tid, FALSE, 0, NULL, NULL);
 #if OMPT_SUPPORT && OMPT_OPTIONAL
   if (ompt_enabled.enabled) {
-    ompt_frame->enter_frame = ompt_data_none;
+    ompt_frame->enter_frame = NULL;
   }
 #endif
 }
@@ -872,7 +864,7 @@ void __kmpc_ordered(ident_t *loc, kmp_int32 gtid) {
 
 #if OMPT_SUPPORT && OMPT_OPTIONAL
   kmp_team_t *team;
-  ompt_wait_id_t lck;
+  omp_wait_id_t lck;
   void *codeptr_ra;
   if (ompt_enabled.enabled) {
     OMPT_STORE_RETURN_ADDRESS(gtid);
@@ -880,7 +872,7 @@ void __kmpc_ordered(ident_t *loc, kmp_int32 gtid) {
     lck = (ompt_wait_id_t)(uintptr_t)&team->t.t_ordered.dt.t_value;
     /* OMPT state update */
     th->th.ompt_thread_info.wait_id = lck;
-    th->th.ompt_thread_info.state = ompt_state_wait_ordered;
+    th->th.ompt_thread_info.state = omp_state_wait_ordered;
 
     /* OMPT event callback */
     codeptr_ra = OMPT_LOAD_RETURN_ADDRESS(gtid);
@@ -900,7 +892,7 @@ void __kmpc_ordered(ident_t *loc, kmp_int32 gtid) {
 #if OMPT_SUPPORT && OMPT_OPTIONAL
   if (ompt_enabled.enabled) {
     /* OMPT state update */
-    th->th.ompt_thread_info.state = ompt_state_work_parallel;
+    th->th.ompt_thread_info.state = omp_state_work_parallel;
     th->th.ompt_thread_info.wait_id = 0;
 
     /* OMPT event callback */
@@ -995,18 +987,24 @@ __kmp_init_indirect_csptr(kmp_critical_name *crit, ident_t const *loc,
       kmp_uint32 spins;                                                        \
       KMP_FSYNC_PREPARE(l);                                                    \
       KMP_INIT_YIELD(spins);                                                   \
+      if (TCR_4(__kmp_nth) >                                                   \
+          (__kmp_avail_proc ? __kmp_avail_proc : __kmp_xproc)) {               \
+        KMP_YIELD(TRUE);                                                       \
+      } else {                                                                 \
+        KMP_YIELD_SPIN(spins);                                                 \
+      }                                                                        \
       kmp_backoff_t backoff = __kmp_spin_backoff_params;                       \
-      do {                                                                     \
+      while (                                                                  \
+          KMP_ATOMIC_LD_RLX(&l->lk.poll) != tas_free ||                        \
+          !__kmp_atomic_compare_store_acq(&l->lk.poll, tas_free, tas_busy)) {  \
+        __kmp_spin_backoff(&backoff);                                          \
         if (TCR_4(__kmp_nth) >                                                 \
             (__kmp_avail_proc ? __kmp_avail_proc : __kmp_xproc)) {             \
           KMP_YIELD(TRUE);                                                     \
         } else {                                                               \
           KMP_YIELD_SPIN(spins);                                               \
         }                                                                      \
-        __kmp_spin_backoff(&backoff);                                          \
-      } while (                                                                \
-          KMP_ATOMIC_LD_RLX(&l->lk.poll) != tas_free ||                        \
-          !__kmp_atomic_compare_store_acq(&l->lk.poll, tas_free, tas_busy));   \
+      }                                                                        \
     }                                                                          \
     KMP_FSYNC_ACQUIRED(l);                                                     \
   }
@@ -1092,7 +1090,8 @@ __kmp_init_indirect_csptr(kmp_critical_name *crit, ident_t const *loc,
               KMP_LOCK_BUSY(1, futex), NULL, NULL, 0);                         \
     }                                                                          \
     KMP_MB();                                                                  \
-    KMP_YIELD_OVERSUB();                                                       \
+    KMP_YIELD(TCR_4(__kmp_nth) >                                               \
+              (__kmp_avail_proc ? __kmp_avail_proc : __kmp_xproc));            \
   }
 
 #endif // KMP_USE_FUTEX
@@ -1167,7 +1166,7 @@ void __kmpc_critical(ident_t *loc, kmp_int32 global_tid,
 #else
   KMP_COUNT_BLOCK(OMP_CRITICAL);
 #if OMPT_SUPPORT && OMPT_OPTIONAL
-  ompt_state_t prev_state = ompt_state_undefined;
+  omp_state_t prev_state = omp_state_undefined;
   ompt_thread_info_t ti;
 #endif
   kmp_user_lock_p lck;
@@ -1297,7 +1296,6 @@ static __forceinline kmp_dyna_lockseq_t __kmp_map_hint_to_lock(uintptr_t hint) {
 }
 
 #if OMPT_SUPPORT && OMPT_OPTIONAL
-#if KMP_USE_DYNAMIC_LOCK
 static kmp_mutex_impl_t
 __ompt_get_mutex_impl_type(void *user_lock, kmp_indirect_lock_t *ilock = 0) {
   if (user_lock) {
@@ -1315,7 +1313,7 @@ __ompt_get_mutex_impl_type(void *user_lock, kmp_indirect_lock_t *ilock = 0) {
       return kmp_mutex_impl_speculative;
 #endif
     default:
-      return kmp_mutex_impl_none;
+      return ompt_mutex_impl_unknown;
     }
     ilock = KMP_LOOKUP_I_LOCK(user_lock);
   }
@@ -1339,10 +1337,10 @@ __ompt_get_mutex_impl_type(void *user_lock, kmp_indirect_lock_t *ilock = 0) {
   case locktag_nested_drdpa:
     return kmp_mutex_impl_queuing;
   default:
-    return kmp_mutex_impl_none;
+    return ompt_mutex_impl_unknown;
   }
 }
-#else
+
 // For locks without dynamic binding
 static kmp_mutex_impl_t __ompt_get_mutex_impl_type() {
   switch (__kmp_user_lock_kind) {
@@ -1362,11 +1360,10 @@ static kmp_mutex_impl_t __ompt_get_mutex_impl_type() {
     return kmp_mutex_impl_speculative;
 #endif
   default:
-    return kmp_mutex_impl_none;
+    return ompt_mutex_impl_unknown;
   }
 }
-#endif // KMP_USE_DYNAMIC_LOCK
-#endif // OMPT_SUPPORT && OMPT_OPTIONAL
+#endif
 
 /*!
 @ingroup WORK_SHARING
@@ -1382,11 +1379,11 @@ thread can enter the critical section unless the hint suggests use of
 speculative execution and the hardware supports it.
 */
 void __kmpc_critical_with_hint(ident_t *loc, kmp_int32 global_tid,
-                               kmp_critical_name *crit, uint32_t hint) {
+                               kmp_critical_name *crit, uintptr_t hint) {
   KMP_COUNT_BLOCK(OMP_CRITICAL);
   kmp_user_lock_p lck;
 #if OMPT_SUPPORT && OMPT_OPTIONAL
-  ompt_state_t prev_state = ompt_state_undefined;
+  omp_state_t prev_state = omp_state_undefined;
   ompt_thread_info_t ti;
   // This is the case, if called from __kmpc_critical:
   void *codeptr = OMPT_LOAD_RETURN_ADDRESS(global_tid);
@@ -1622,11 +1619,11 @@ kmp_int32 __kmpc_barrier_master(ident_t *loc, kmp_int32 global_tid) {
     __kmp_check_barrier(global_tid, ct_barrier, loc);
 
 #if OMPT_SUPPORT
-  ompt_frame_t *ompt_frame;
+  omp_frame_t *ompt_frame;
   if (ompt_enabled.enabled) {
     __ompt_get_task_info_internal(0, NULL, NULL, &ompt_frame, NULL, NULL);
-    if (ompt_frame->enter_frame.ptr == NULL)
-      ompt_frame->enter_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
+    if (ompt_frame->enter_frame == NULL)
+      ompt_frame->enter_frame = OMPT_GET_FRAME_ADDRESS(1);
     OMPT_STORE_RETURN_ADDRESS(global_tid);
   }
 #endif
@@ -1636,7 +1633,7 @@ kmp_int32 __kmpc_barrier_master(ident_t *loc, kmp_int32 global_tid) {
   status = __kmp_barrier(bs_plain_barrier, global_tid, TRUE, 0, NULL, NULL);
 #if OMPT_SUPPORT && OMPT_OPTIONAL
   if (ompt_enabled.enabled) {
-    ompt_frame->enter_frame = ompt_data_none;
+    ompt_frame->enter_frame = NULL;
   }
 #endif
 
@@ -1686,11 +1683,11 @@ kmp_int32 __kmpc_barrier_master_nowait(ident_t *loc, kmp_int32 global_tid) {
   }
 
 #if OMPT_SUPPORT
-  ompt_frame_t *ompt_frame;
+  omp_frame_t *ompt_frame;
   if (ompt_enabled.enabled) {
     __ompt_get_task_info_internal(0, NULL, NULL, &ompt_frame, NULL, NULL);
-    if (ompt_frame->enter_frame.ptr == NULL)
-      ompt_frame->enter_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
+    if (ompt_frame->enter_frame == NULL)
+      ompt_frame->enter_frame = OMPT_GET_FRAME_ADDRESS(1);
     OMPT_STORE_RETURN_ADDRESS(global_tid);
   }
 #endif
@@ -1700,7 +1697,7 @@ kmp_int32 __kmpc_barrier_master_nowait(ident_t *loc, kmp_int32 global_tid) {
   __kmp_barrier(bs_plain_barrier, global_tid, FALSE, 0, NULL, NULL);
 #if OMPT_SUPPORT && OMPT_OPTIONAL
   if (ompt_enabled.enabled) {
-    ompt_frame->enter_frame = ompt_data_none;
+    ompt_frame->enter_frame = NULL;
   }
 #endif
 
@@ -1820,7 +1817,7 @@ void __kmpc_for_static_fini(ident_t *loc, kmp_int32 global_tid) {
 
 #if OMPT_SUPPORT && OMPT_OPTIONAL
   if (ompt_enabled.ompt_callback_work) {
-    ompt_work_t ompt_work_type = ompt_work_loop;
+    ompt_work_type_t ompt_work_type = ompt_work_loop;
     ompt_team_info_t *team_info = __ompt_get_teaminfo(0, NULL);
     ompt_task_info_t *task_info = __ompt_get_task_info_object(0);
     // Determine workshare type
@@ -1873,7 +1870,7 @@ void ompc_set_nested(int flag) {
 
   __kmp_save_internal_controls(thread);
 
-  set__max_active_levels(thread, flag ? __kmp_dflt_max_active_levels : 1);
+  set__nested(thread, flag ? TRUE : FALSE);
 }
 
 void ompc_set_max_active_levels(int max_active_levels) {
@@ -1948,6 +1945,7 @@ size_t ompc_capture_affinity(char *buffer, size_t buf_size,
   return num_required;
 }
 
+>>>>>>> master
 void kmpc_set_stacksize(int arg) {
   // __kmp_aux_set_stacksize initializes the library if needed
   __kmp_aux_set_stacksize(arg);
@@ -2087,11 +2085,11 @@ void __kmpc_copyprivate(ident_t *loc, kmp_int32 gtid, size_t cpy_size,
     *data_ptr = cpy_data;
 
 #if OMPT_SUPPORT
-  ompt_frame_t *ompt_frame;
+  omp_frame_t *ompt_frame;
   if (ompt_enabled.enabled) {
     __ompt_get_task_info_internal(0, NULL, NULL, &ompt_frame, NULL, NULL);
-    if (ompt_frame->enter_frame.ptr == NULL)
-      ompt_frame->enter_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
+    if (ompt_frame->enter_frame == NULL)
+      ompt_frame->enter_frame = OMPT_GET_FRAME_ADDRESS(1);
     OMPT_STORE_RETURN_ADDRESS(gtid);
   }
 #endif
@@ -2119,7 +2117,7 @@ void __kmpc_copyprivate(ident_t *loc, kmp_int32 gtid, size_t cpy_size,
   __kmp_barrier(bs_plain_barrier, gtid, FALSE, 0, NULL, NULL);
 #if OMPT_SUPPORT && OMPT_OPTIONAL
   if (ompt_enabled.enabled) {
-    ompt_frame->enter_frame = ompt_data_none;
+    ompt_frame->enter_frame = NULL;
   }
 #endif
 }
@@ -2663,7 +2661,6 @@ void __kmpc_set_nest_lock(ident_t *loc, kmp_int32 gtid, void **user_lock) {
 #endif
   int acquire_status =
       KMP_D_LOCK_FUNC(user_lock, set)((kmp_dyna_lock_t *)user_lock, gtid);
-  (void) acquire_status;
 #if USE_ITT_BUILD
   __kmp_itt_lock_acquired((kmp_user_lock_p)user_lock);
 #endif
@@ -2856,7 +2853,6 @@ void __kmpc_unset_nest_lock(ident_t *loc, kmp_int32 gtid, void **user_lock) {
 #endif
   int release_status =
       KMP_D_LOCK_FUNC(user_lock, unset)((kmp_dyna_lock_t *)user_lock, gtid);
-  (void) release_status;
 
 #if OMPT_SUPPORT && OMPT_OPTIONAL
   // This is the case, if called from omp_init_lock_with_hint:
@@ -3423,6 +3419,7 @@ __kmpc_reduce_nowait(ident_t *loc, kmp_int32 global_tid, kmp_int32 num_vars,
 #endif
 
 
+
   // packed_reduction_method value will be reused by __kmp_end_reduce* function,
   // the value should be kept in a variable
   // the variable should be either a construct-specific or thread-specific
@@ -3488,11 +3485,11 @@ __kmpc_reduce_nowait(ident_t *loc, kmp_int32 global_tid, kmp_int32 num_vars,
     // JP: as long as there is a barrier in the implementation, OMPT should and
     // will provide the barrier events
     //         so we set-up the necessary frame/return addresses.
-    ompt_frame_t *ompt_frame;
+    omp_frame_t *ompt_frame;
     if (ompt_enabled.enabled) {
       __ompt_get_task_info_internal(0, NULL, NULL, &ompt_frame, NULL, NULL);
-      if (ompt_frame->enter_frame.ptr == NULL)
-        ompt_frame->enter_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
+      if (ompt_frame->enter_frame == NULL)
+        ompt_frame->enter_frame = OMPT_GET_FRAME_ADDRESS(1);
       OMPT_STORE_RETURN_ADDRESS(global_tid);
     }
 #endif
@@ -3505,7 +3502,7 @@ __kmpc_reduce_nowait(ident_t *loc, kmp_int32 global_tid, kmp_int32 num_vars,
     retval = (retval != 0) ? (0) : (1);
 #if OMPT_SUPPORT && OMPT_OPTIONAL
     if (ompt_enabled.enabled) {
-      ompt_frame->enter_frame = ompt_data_none;
+      ompt_frame->enter_frame = NULL;
     }
 #endif
 
@@ -3549,6 +3546,12 @@ void __kmpc_end_reduce_nowait(ident_t *loc, kmp_int32 global_tid,
   KA_TRACE(10, ("__kmpc_end_reduce_nowait() enter: called T#%d\n", global_tid));
 
   packed_reduction_method = __KMP_GET_REDUCTION_METHOD(global_tid);
+
+#ifdef OMP_40_ENABLED
+    kmp_team_t *team;
+    kmp_info_t *th;
+    th = __kmp_thread_from_gtid(global_tid);
+#endif
 
   if (packed_reduction_method == critical_reduce_block) {
 
@@ -3691,11 +3694,11 @@ kmp_int32 __kmpc_reduce(ident_t *loc, kmp_int32 global_tid, kmp_int32 num_vars,
 // this barrier should be visible to a customer and to the threading profile
 // tool (it's a terminating barrier on constructs if NOWAIT not specified)
 #if OMPT_SUPPORT
-    ompt_frame_t *ompt_frame;
+    omp_frame_t *ompt_frame;
     if (ompt_enabled.enabled) {
       __ompt_get_task_info_internal(0, NULL, NULL, &ompt_frame, NULL, NULL);
-      if (ompt_frame->enter_frame.ptr == NULL)
-        ompt_frame->enter_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
+      if (ompt_frame->enter_frame == NULL)
+        ompt_frame->enter_frame = OMPT_GET_FRAME_ADDRESS(1);
       OMPT_STORE_RETURN_ADDRESS(global_tid);
     }
 #endif
@@ -3709,7 +3712,7 @@ kmp_int32 __kmpc_reduce(ident_t *loc, kmp_int32 global_tid, kmp_int32 num_vars,
     retval = (retval != 0) ? (0) : (1);
 #if OMPT_SUPPORT && OMPT_OPTIONAL
     if (ompt_enabled.enabled) {
-      ompt_frame->enter_frame = ompt_data_none;
+      ompt_frame->enter_frame = NULL;
     }
 #endif
 
@@ -3769,11 +3772,11 @@ void __kmpc_end_reduce(ident_t *loc, kmp_int32 global_tid,
 
 // TODO: implicit barrier: should be exposed
 #if OMPT_SUPPORT
-    ompt_frame_t *ompt_frame;
+    omp_frame_t *ompt_frame;
     if (ompt_enabled.enabled) {
       __ompt_get_task_info_internal(0, NULL, NULL, &ompt_frame, NULL, NULL);
-      if (ompt_frame->enter_frame.ptr == NULL)
-        ompt_frame->enter_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
+      if (ompt_frame->enter_frame == NULL)
+        ompt_frame->enter_frame = OMPT_GET_FRAME_ADDRESS(1);
       OMPT_STORE_RETURN_ADDRESS(global_tid);
     }
 #endif
@@ -3783,7 +3786,7 @@ void __kmpc_end_reduce(ident_t *loc, kmp_int32 global_tid,
     __kmp_barrier(bs_plain_barrier, global_tid, FALSE, 0, NULL, NULL);
 #if OMPT_SUPPORT && OMPT_OPTIONAL
     if (ompt_enabled.enabled) {
-      ompt_frame->enter_frame = ompt_data_none;
+      ompt_frame->enter_frame = NULL;
     }
 #endif
 
@@ -3793,11 +3796,11 @@ void __kmpc_end_reduce(ident_t *loc, kmp_int32 global_tid,
 
 // TODO: implicit barrier: should be exposed
 #if OMPT_SUPPORT
-    ompt_frame_t *ompt_frame;
+    omp_frame_t *ompt_frame;
     if (ompt_enabled.enabled) {
       __ompt_get_task_info_internal(0, NULL, NULL, &ompt_frame, NULL, NULL);
-      if (ompt_frame->enter_frame.ptr == NULL)
-        ompt_frame->enter_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
+      if (ompt_frame->enter_frame == NULL)
+        ompt_frame->enter_frame = OMPT_GET_FRAME_ADDRESS(1);
       OMPT_STORE_RETURN_ADDRESS(global_tid);
     }
 #endif
@@ -3807,18 +3810,18 @@ void __kmpc_end_reduce(ident_t *loc, kmp_int32 global_tid,
     __kmp_barrier(bs_plain_barrier, global_tid, FALSE, 0, NULL, NULL);
 #if OMPT_SUPPORT && OMPT_OPTIONAL
     if (ompt_enabled.enabled) {
-      ompt_frame->enter_frame = ompt_data_none;
+      ompt_frame->enter_frame = NULL;
     }
 #endif
 
   } else if (packed_reduction_method == atomic_reduce_block) {
 
 #if OMPT_SUPPORT
-    ompt_frame_t *ompt_frame;
+    omp_frame_t *ompt_frame;
     if (ompt_enabled.enabled) {
       __ompt_get_task_info_internal(0, NULL, NULL, &ompt_frame, NULL, NULL);
-      if (ompt_frame->enter_frame.ptr == NULL)
-        ompt_frame->enter_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
+      if (ompt_frame->enter_frame == NULL)
+        ompt_frame->enter_frame = OMPT_GET_FRAME_ADDRESS(1);
       OMPT_STORE_RETURN_ADDRESS(global_tid);
     }
 #endif
@@ -3829,7 +3832,7 @@ void __kmpc_end_reduce(ident_t *loc, kmp_int32 global_tid,
     __kmp_barrier(bs_plain_barrier, global_tid, FALSE, 0, NULL, NULL);
 #if OMPT_SUPPORT && OMPT_OPTIONAL
     if (ompt_enabled.enabled) {
-      ompt_frame->enter_frame = ompt_data_none;
+      ompt_frame->enter_frame = NULL;
     }
 #endif
 
@@ -3997,8 +4000,8 @@ void __kmpc_doacross_init(ident_t *loc, int gtid, int num_dims,
   // __kmp_dispatch_num_buffers)
   if (idx != sh_buf->doacross_buf_idx) {
     // Shared buffer is occupied, wait for it to be free
-    __kmp_wait_4((volatile kmp_uint32 *)&sh_buf->doacross_buf_idx, idx,
-                 __kmp_eq_4, NULL);
+    __kmp_wait_yield_4((volatile kmp_uint32 *)&sh_buf->doacross_buf_idx, idx,
+                       __kmp_eq_4, NULL);
   }
 #if KMP_32_BIT_ARCH
   // Check if we are the first thread. After the CAS the first thread gets 0,
