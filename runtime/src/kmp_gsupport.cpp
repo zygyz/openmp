@@ -1257,7 +1257,7 @@ unsigned KMP_EXPAND_NAME(KMP_API_NAME_GOMP_SECTIONS_START)(unsigned count) {
   kmp_int lb, ub, stride;
   int gtid = __kmp_entry_gtid();
   MKLOC(loc, "GOMP_sections_start");
-  KA_TRACE(20, ("GOMP_sections_start: T#%d\n", gtid));
+  KA_TRACE(0, ("GOMP_sections_start: T#%d\n", gtid));
 
   KMP_DISPATCH_INIT(&loc, gtid, kmp_nm_dynamic_chunked, 1, count, 1, 1, TRUE);
 
@@ -1280,7 +1280,7 @@ unsigned KMP_EXPAND_NAME(KMP_API_NAME_GOMP_SECTIONS_NEXT)(void) {
   kmp_int lb, ub, stride;
   int gtid = __kmp_get_gtid();
   MKLOC(loc, "GOMP_sections_next");
-  KA_TRACE(20, ("GOMP_sections_next: T#%d\n", gtid));
+  KA_TRACE(0, ("GOMP_sections_next: T#%d\n", gtid));
 
 #if OMPT_SUPPORT
   OMPT_STORE_RETURN_ADDRESS(gtid);
@@ -1315,7 +1315,7 @@ void KMP_EXPAND_NAME(KMP_API_NAME_GOMP_PARALLEL_SECTIONS_START)(
 #endif
 
   MKLOC(loc, "GOMP_parallel_sections_start");
-  KA_TRACE(20, ("GOMP_parallel_sections_start: T#%d\n", gtid));
+  KA_TRACE(0, ("GOMP_parallel_sections_start: T#%d\n", gtid));
 
   if (__kmpc_ok_to_fork(&loc) && (num_threads != 1)) {
     if (num_threads != 0) {
@@ -1337,7 +1337,7 @@ void KMP_EXPAND_NAME(KMP_API_NAME_GOMP_PARALLEL_SECTIONS_START)(
 
   KMP_DISPATCH_INIT(&loc, gtid, kmp_nm_dynamic_chunked, 1, count, 1, 1, TRUE);
 
-  KA_TRACE(20, ("GOMP_parallel_sections_start exit: T#%d\n", gtid));
+  KA_TRACE(0, ("GOMP_parallel_sections_start exit: T#%d\n", gtid));
 }
 
 void KMP_EXPAND_NAME(KMP_API_NAME_GOMP_SECTIONS_END)(void) {
